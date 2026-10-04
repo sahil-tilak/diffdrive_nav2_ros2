@@ -10,7 +10,7 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     pkg_share = get_package_share_directory('diffdrive_nav2_ros2')
     xacro_file = os.path.join(pkg_share, 'urdf', 'robot.urdf.xacro')
-    world_file = os.path.join(pkg_share, 'worlds', 'empty_world.sdf')
+    world_file = os.path.join(pkg_share, 'worlds', 'test_world.sdf')
 
     robot_description = ParameterValue(
         Command([FindExecutable(name='xacro'), ' ', xacro_file]),
