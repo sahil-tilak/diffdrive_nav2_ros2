@@ -30,6 +30,7 @@ install(DIRECTORY
   launch
   worlds
   maps
+  config
   DESTINATION share/${PROJECT_NAME}
 )
 
