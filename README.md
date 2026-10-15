@@ -6,7 +6,7 @@ A custom differential-drive mobile robot built from scratch (URDF/Xacro), simula
 - [x] Robot description (chassis, wheels, caster, 2D LiDAR)
 - [x] Gazebo simulation with differential-drive plugin
 - [x] Teleop control, `/odom` and `/scan` publishing
-- [ ] SLAM (slam_toolbox)
-- [ ] Nav2 autonomous navigation
+- [x] SLAM (slam_toolbox)
+- [x] Nav2 autonomous navigation
 
 Full documentation and demo coming as the project progresses.
