@@ -38,7 +38,7 @@
 
 ## Week 6 (Oct 20, 2026): unmapped obstacle + 5-run gate
 
-Setup: `unmapped_box` (0.4 x 0.4 x 1 m) at world (1.5, 0) was added to `worlds/test_world.sdf` itself (commit da7331b). The saved map was made from the world before that commit and does not contain the box. The box is inside lidar range (2.5 m) from the start, so Nav2 sees it before the goal is sent.
+Setup: `unmapped_box` (0.4 x 0.4 x 1 m) at world (1.5, 0) was added to `worlds/test_world.sdf` itself (commit 5319c12). The saved map was made from the world before that commit and does not contain the box. The box is inside lidar range (2.5 m) from the start, so Nav2 sees it before the goal is sent.
 Goal: map (3.0, 0.0), heading +x, from spawn (0, 0). Full restart of Gazebo and Nav2 before every run.
 Pass rule (written before the runs): SUCCEEDED, no touch (by eye), nothing changed since the last run. Unknown counts as fail.
 
