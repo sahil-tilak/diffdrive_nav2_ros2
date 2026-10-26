@@ -1,8 +1,8 @@
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from ament_index_python.packages import get_package_share_directory
@@ -17,6 +17,13 @@ def generate_launch_description():
         value_type=str
     )
 
+    headless_arg = DeclareLaunchArgument(
+        'headless', default_value='false',
+        description='true = run Gazebo without its window (-s)')
+    gz_args = PythonExpression([
+        "('-r -s ' if '", LaunchConfiguration('headless'),
+        "' == 'true' else '-r ') + '", world_file, "'"])
+
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -25,7 +32,7 @@ def generate_launch_description():
                 'gz_sim.launch.py'
             )
         ),
-        launch_arguments={'gz_args': f'-r {world_file}'}.items()
+        launch_arguments={'gz_args': gz_args}.items()
     )
 
     robot_state_publisher = Node(
@@ -61,6 +68,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        headless_arg,
         gz_sim,
         robot_state_publisher,
         spawn_robot,
