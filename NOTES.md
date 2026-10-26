@@ -59,3 +59,28 @@ Caveats:
 - Run 4: stray lidar points reported at start (~45 degree line, x/-y quadrant), run took 17.9 s. Unexplained, did not recur.
 - distance_remaining repeats exact values across runs; not a live distance. Do not use.
 - Robot passed on -y side in every run. Only one path was tested.
+
+## 2026-10-26 - Week 1(new plan): collision_monitor stops (mitigated, cause unconfirmed)
+**Did**
+- Measured sim speed and /odom delivery (Oct 22, no goal sent).
+- Ran two batches of 10 runs, same goal (3.0, 0.0), full restart each run (Oct 26).
+- Added `headless:=true` launch option (no Gazebo window). Default is false, so the window stays on.
+
+**Findings**
+- Runs with stops: old setup (window on, RViz on) 3 of 6. Headless, no RViz: 0 of 10. Headless, RViz on: 1 of 10 (run 06 took 14 s with no stop, unexplained).
+- All 20 new runs ended SUCCEEDED.
+- Sim speed from raw timestamps: about 0.62x with Nav2 + RViz and window on, about 0.84x with window off.
+- /odom with Nav2 on (idle) and no RViz, window off: 49.95 Hz, longest gap 0.024 s. With Nav2 + RViz on, window off: 36.8 Hz, longest gap 0.328 s.
+- The real_time_factor field is not reliable (it matched nothing). Use raw sim/real timestamps.
+- transform_tolerance is already 0.2 s, so a larger tolerance does not explain the stops.
+
+**Not verified**
+- Collisions were not checked in either batch (no window, RViz cannot show a scrape). Not gate evidence.
+- Batch A changed two things at once (window off, RViz off).
+- The old baseline is only 6 runs, from a different day.
+- The link between /odom jitter and the stops is an inference.
+- Early guess "RViz causes the stalls" is not supported by batch B.
+- Cause of the scan/odom timing gap is still unknown. This is a workaround that lowers load.
+
+**Next**
+- DECISIONS.md, README, demo GIF (needs the window, so launch without headless).
