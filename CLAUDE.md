@@ -1,0 +1,11 @@
+# Project rules
+- ROS2 Jazzy, Gazebo Harmonic, WSL2 Ubuntu 24.04. Package: diffdrive_nav2_ros2.
+- Always run `source ~/ros2_ws/install/setup.bash` first.
+- Launch and Nav2 read the INSTALLED copy. After editing anything in src, run `cd ~/ros2_ws && colcon build --packages-select diffdrive_nav2_ros2` and re-source.
+- Do not change config/, worlds/, urdf/, maps/ or launch/ unless I ask. Show `git diff` for every change.
+- Never `git add .` (name the files). Never push without asking. Never `sed -i` a file whose lines you have not printed first.
+- Never overwrite files in ~/run_logs. If a log file already exists, stop.
+- Test goal: map frame (3.0, 0.0), heading +x. Full restart of Gazebo and Nav2 before every run. Wait for "Managed nodes are active" twice before sending the goal.
+- Collisions cannot be checked headless. Never claim "no collisions".
+- Mark anything unverified as unverified. Do not say "done" without showing evidence.
+- Short answers, simple English, bullets.
