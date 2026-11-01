@@ -84,3 +84,24 @@ Caveats:
 
 **Next**
 - DECISIONS.md, README, demo GIF (needs the window, so launch without headless).
+
+## 2026-11-01 - Week 1: stops re-check, batch runner, window-mode runs
+**Did**
+- Inflation radius 0.7 -> 0.4 (local + global), committed.
+- Wrote scripts/run_batch.sh with Claude Code. Calibrated against hand runs: calA (headless, no RViz, 10 runs) = 10 of 10 SUCCEEDED, 0 stops, 8-9 s, matching the hand-run batch.
+- vizT2: window on, RViz on, inflation 0.4, visualize true, 10 runs.
+- Three scripted window-mode attempts ended abruptly (the last one coincided with a WSL restart, uptime reset to 19:19:56). Later 12 window-mode scripted runs worked. Cause unknown. Memory peak was 1852 MB of 7863 MB, so memory was not the cause in those runs.
+
+**Findings**
+- Runs with stops: Oct 20 (0.7, window + RViz) 3 of 6. 0.7 headless no RViz 0 of 10. 0.7 headless RViz on 1 of 10. 0.4 headless no RViz 0 of 10. 0.4 window no RViz 0 of 5. 0.4 headless no RViz (script) 0 of 10. 0.4 window + RViz (script, vizT2) 1 of 10.
+- Since Oct 26: 2 of 55 batch runs had stops, and the setup did not predict them. Both were run 01 of an RViz batch. The visualize hypothesis is not supported (1 of 10). This supersedes the Oct 26 conclusion that headless reduces stops. Headless raised sim speed (about 0.62x -> 0.84x from raw timestamps).
+- vizT2 run 01: 2 stops, same getTransform "extrapolation into the future" error, scan 31-36 ms ahead of the latest odom data (earlier notes said 1-20 ms).
+- vizT2 run 07: 3 x "Managed nodes are active", but the 3rd is after shutdown began (signal_handler line 343). During shutdown, bond heartbeats failed ("CRITICAL FAILURE ... IS DOWN") and lifecycle_manager_localization restarted map_server + amcl (line 437, "re-established connections from server respawns"). This is a shutdown artifact, not a problem during driving. Goal SUCCEEDED. The script's nodes_active counts the whole log, not only lines before shutdown.
+
+**Not verified**
+- Collisions: headless runs cannot show contact, and vizT2 was not watched.
+- Why WSL restarted, why the stops cluster in run 01 of a batch, why only run 07 restarted localization during shutdown.
+- The old 3-of-6 baseline is 6 runs from one day; it may be chance or a different machine state.
+
+**Next**
+- README, DECISIONS.md (headless as speed option, inflation 0.4, MPPI untested default), demo GIF.

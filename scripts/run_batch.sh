@@ -100,8 +100,8 @@ print_table() {
     NN=$(printf "%02d" "$i")
     nav=$LOGDIR/${P}_${NN}_nav2.log
     goal=$LOGDIR/${P}_${NN}_goal.log
-    nodes=$(grep -c "Managed nodes are active" "$nav" 2>/dev/null || true); nodes=${nodes:-0}
     # Count only lines before shutdown (first "signal_handler"); whole file if none.
+    nodes=$(count_before_shutdown "Managed nodes are active" "$nav")
     stops=$(count_before_shutdown "Robot to stop" "$nav")
     errors=$(count_before_shutdown "ERROR" "$nav")
     status=$(grep "status:" "$goal" 2>/dev/null | tail -1 | awk '{print $NF}'); status=${status:--}
