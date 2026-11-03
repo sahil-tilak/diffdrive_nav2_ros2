@@ -21,6 +21,7 @@
     <xacro:property name="caster_radius" value="0.02"/>
     <xacro:property name="caster_mass" value="0.05"/>
     <xacro:property name="caster_x_offset" value="${-(chassis_length/2 - caster_radius)}"/>
+    <xacro:property name="front_caster_x_offset" value="${chassis_length/2 - caster_radius}"/>
     <xacro:property name="caster_z_offset" value="${caster_radius - base_link_height}"/>
     <xacro:property name="caster_inertia" value="${(2/5) * caster_mass * caster_radius * caster_radius}"/>
 
@@ -149,6 +150,30 @@
         <origin xyz="${caster_x_offset} 0 ${caster_z_offset}" rpy="0 0 0"/>
     </joint>
 
+    <link name="front_caster_wheel">
+        <visual>
+            <geometry>
+                <sphere radius="${caster_radius}"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="${caster_radius}"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="${caster_mass}"/>
+            <inertia ixx="${caster_inertia}" ixy="0.0" ixz="0.0" iyy="${caster_inertia}" iyz="0.0" izz="${caster_inertia}"/>
+        </inertial>
+    </link>
+
+    <joint name="front_caster_wheel_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="front_caster_wheel"/>
+        <origin xyz="${front_caster_x_offset} 0 ${caster_z_offset}" rpy="0 0 0"/>
+    </joint>
+
     <link name="lidar_link">
         <visual>
             <geometry>
@@ -174,6 +199,11 @@
     </joint>
 
     <gazebo reference="caster_wheel">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+    </gazebo>
+
+    <gazebo reference="front_caster_wheel">
         <mu1>0.01</mu1>
         <mu2>0.01</mu2>
     </gazebo>
