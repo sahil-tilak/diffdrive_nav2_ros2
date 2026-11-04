@@ -105,3 +105,28 @@ Caveats:
 
 **Next**
 - README, DECISIONS.md (headless as speed option, inflation 0.4, MPPI untested default), demo GIF.
+
+## 2026-11-04 - Braking tilt and front caster
+**Did**
+- Nov 2 video: a straight line of scan points ~3.3 m ahead, perpendicular to the heading, was marked into both costmaps; the robot crawled for ~15 s.
+- Old geometry: wheels at x=0, one rear caster, nothing under the front, centre of mass 2.6 mm behind the axle, lidar at 0.14 m.
+- pitch test: 3 runs, window + RViz, recorder on (true Gazebo pose, /cmd_vel, /scan).
+- Fix: front caster mirroring the rear one (commit d801528).
+- Validation batches: pitchB (with caster, recorder on), calB (headless, no RViz), vizC (window + RViz, no recorder).
+
+**Findings**
+- pitch: nose-down 4.5-8.2 deg after braking in all 3 runs.
+- pitch run 2 chain: getTransform error -> collision_monitor stop -> cmd_vel drop 0.39 m/s -> 8.25 deg -> floor hits at 1.0-1.5 m.
+- The pre-set floor-hit test failed its own control (21 of 27 flat scans also passed). Post-hoc check: straight-ahead range 0.99 m vs 1.97 m in the flat scan before; predicted floor 1.04 m.
+- The 3.3 m line (~2.4 deg) was not reproduced.
+- pitchB (with caster): run 01 Gazebo timeout; runs 02-03 tilt ~0.015 deg, but 25-26 s and 34-37 stops; sim ~0.5x; recorder running.
+- calB (headless, no RViz): 10/10 SUCCEEDED, 9 s, 0 runs with stops, +y.
+- vizC (window + RViz, no recorder): 5/5 SUCCEEDED, 9-10 s, 1 run with stops (3); load average 12-16 during the batch.
+
+**Not verified**
+- Why pitchB was slow. By the pre-set rule: load + recorder. Small sample.
+- Collisions.
+- Recorder bug: session numbering shifts after an invalid run.
+
+**Next**
+- Fix the recorder session numbering before using it again.

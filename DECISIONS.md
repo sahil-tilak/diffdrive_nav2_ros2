@@ -34,3 +34,13 @@ Why: a split moves files and changes the package name in every command, which co
 Evidence: 3 test runs with the launch file reached the goal: window on (about 9 s), headless (about 9 s), window + RViz (17 s, at least 14 `collision_monitor` stops).
 Limits: Nav2 starts after a fixed delay, it does not wait for Gazebo to be ready. Startup timing differs from the batch runner, so these runs are not in the results tables. `scripts/run_batch.sh` still uses the manual start.
 Not done: the split. It may still make sense when the C++ packages arrive.
+
+## 2026-11-04 - Chose: add a front caster
+Alternatives: shift the centre of mass rearward; a front caster raised 1-2 mm above the floor; limit braking deceleration.
+Why: it removes the tilt completely with one small URDF change and no change to `base_footprint`.
+Evidence:
+- Before (old robot, 3 runs, window + RViz): nose-down 4.5-8.2 deg after braking in all 3 runs; in run 2 the lidar hit the floor at 1.0-1.5 m (straight-ahead range 0.99 m vs 1.97 m in the flat scan before, predicted floor 1.04 m).
+- After (pitchB, 2 valid runs): tilt ~0.015 deg. These runs were slow (25-26 s, 34-37 stops, sim ~0.5x, recorder running).
+- calB (headless, no RViz): 10/10 SUCCEEDED, 9 s, 0 runs with stops, +y.
+- vizC (window + RViz, no recorder): 5/5 SUCCEEDED, 9-10 s, 1 run with stops.
+Limits: 4 contact points on a flat sim floor; no real-robot test.
