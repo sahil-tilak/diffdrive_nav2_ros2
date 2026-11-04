@@ -2,7 +2,9 @@
 
 A differential-drive robot built from scratch (URDF/Xacro) and driven by Nav2 in Gazebo Harmonic with ROS2 Jazzy. It localizes on a saved map with AMCL and drives to a goal, going around an obstacle that is not in the map.
 
-<!-- TODO: demo GIF here (robot avoiding the unmapped box) -->
+![Robot driving around the unmapped box](docs/demo.gif)
+
+*Left: Gazebo. Right: RViz. The box in the middle is not in the saved map; the robot sees it only with its lidar and drives around it.*
 
 ## Status
 - [x] Robot description (chassis, wheels, front and rear casters, 2D LiDAR)
