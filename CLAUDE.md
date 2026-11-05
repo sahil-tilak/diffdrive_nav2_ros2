@@ -11,3 +11,4 @@
 - Short answers, simple English, bullets.
 
 - If you need to deviate from an approved plan, stop and ask before changing it.
+- Never use pkill -f or pgrep -f with a pattern that can match your own shell. Use the bracket trick ([g]z) or explicit PIDs.

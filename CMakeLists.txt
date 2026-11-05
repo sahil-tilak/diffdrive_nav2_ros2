@@ -13,6 +13,15 @@ find_package(ament_cmake REQUIRED)
 # find_package(robot_state_publisher REQUIRED)
 # find_package(joint_state_publisher REQUIRED)
 
+# --- perception (obstacle detector) ---
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(message_filters REQUIRED)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -38,5 +47,30 @@ install(PROGRAMS
   scripts/moving_obstacle.py
   DESTINATION lib/${PROJECT_NAME}
 )
+
+# --- perception (obstacle detector) ---
+# Clustering library: plain C++17, no ROS (can move to its own package later).
+add_library(scan_clustering STATIC src/perception/scan_clustering.cpp)
+target_include_directories(scan_clustering PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(scan_clustering PUBLIC cxx_std_17)
+
+add_executable(obstacle_detector_node src/perception/obstacle_detector_node.cpp)
+target_link_libraries(obstacle_detector_node scan_clustering)
+ament_target_dependencies(obstacle_detector_node
+  rclcpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs message_filters)
+install(TARGETS obstacle_detector_node DESTINATION lib/${PROJECT_NAME})
+
+install(PROGRAMS
+  scripts/perception_record.py
+  scripts/perception_analyze.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_scan_clustering test/test_scan_clustering.cpp)
+  target_link_libraries(test_scan_clustering scan_clustering)
+endif()
 
 ament_package()
