@@ -28,8 +28,12 @@ def generate_launch_description():
     rviz = LaunchConfiguration('rviz')
     nav2_delay = LaunchConfiguration('nav2_delay')
     rviz_delay = LaunchConfiguration('rviz_delay')
+    moving_obstacle = LaunchConfiguration('moving_obstacle')
 
     args = [
+        DeclareLaunchArgument(
+            'moving_obstacle', default_value='false',
+            description='true = moving box world + obstacle script (see gazebo.launch.py)'),
         DeclareLaunchArgument(
             'headless', default_value='false',
             description='true = run Gazebo without its window'),
@@ -47,7 +51,8 @@ def generate_launch_description():
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_share, 'launch', 'gazebo.launch.py')),
-        launch_arguments={'headless': headless}.items(),
+        launch_arguments={'headless': headless,
+                          'moving_obstacle': moving_obstacle}.items(),
     )
 
     nav2 = IncludeLaunchDescription(

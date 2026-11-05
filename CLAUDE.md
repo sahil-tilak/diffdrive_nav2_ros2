@@ -9,3 +9,5 @@
 - Collisions cannot be checked headless. Never claim "no collisions".
 - Mark anything unverified as unverified. Do not say "done" without showing evidence.
 - Short answers, simple English, bullets.
+
+- If you need to deviate from an approved plan, stop and ask before changing it.

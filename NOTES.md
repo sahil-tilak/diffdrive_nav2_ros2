@@ -130,3 +130,6 @@ Caveats:
 
 **Next**
 - Fix the recorder session numbering before using it again.
+
+## Moving obstacle (Nov 4, 2026)
+- run_batch.sh needs a `moving_obstacle` leftover check (like the gz/rviz check, PS_PATTERN) before Week 3 batches. Not edited yet.

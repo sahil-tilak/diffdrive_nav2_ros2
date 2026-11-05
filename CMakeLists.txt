@@ -34,4 +34,9 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  scripts/moving_obstacle.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
