@@ -22,6 +22,18 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 
+# --- tracking (Kalman obstacle tracker) ---
+find_package(Eigen3 REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/TrackedObstacle.msg"
+  "msg/TrackedObstacleArray.msg"
+  DEPENDENCIES std_msgs
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -67,10 +79,27 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# --- tracking (Kalman obstacle tracker) ---
+# Library: plain C++17 + Eigen, no ROS.
+add_library(kalman_tracker STATIC src/tracking/kalman_tracker.cpp)
+target_include_directories(kalman_tracker PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(kalman_tracker PUBLIC cxx_std_17)
+target_link_libraries(kalman_tracker PUBLIC Eigen3::Eigen)
+
+add_executable(obstacle_tracker_node src/tracking/obstacle_tracker_node.cpp)
+target_link_libraries(obstacle_tracker_node kalman_tracker)
+ament_target_dependencies(obstacle_tracker_node rclcpp geometry_msgs visualization_msgs)
+rosidl_get_typesupport_target(tracker_msgs_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(obstacle_tracker_node ${tracker_msgs_target})
+install(TARGETS obstacle_tracker_node DESTINATION lib/${PROJECT_NAME})
+
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_scan_clustering test/test_scan_clustering.cpp)
   target_link_libraries(test_scan_clustering scan_clustering)
+  ament_add_gtest(test_kalman_tracker test/test_kalman_tracker.cpp)
+  target_link_libraries(test_kalman_tracker kalman_tracker)
 endif()
 
 ament_package()
