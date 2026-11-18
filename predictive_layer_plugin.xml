@@ -1,0 +1,8 @@
+<library path="diffdrive_predictive_layer">
+  <class type="diffdrive_nav2_ros2::PredictiveLayer" base_class_type="nav2_costmap_2d::Layer">
+    <description>
+      Marks where tracked moving obstacles will be in the next 1-2 s (constant-velocity guess)
+      into the costmap, with a cost that falls with time ahead.
+    </description>
+  </class>
+</library>

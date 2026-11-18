@@ -94,8 +94,34 @@ rosidl_get_typesupport_target(tracker_msgs_target ${PROJECT_NAME} "rosidl_typesu
 target_link_libraries(obstacle_tracker_node ${tracker_msgs_target})
 install(TARGETS obstacle_tracker_node DESTINATION lib/${PROJECT_NAME})
 
+# --- prediction (predictive costmap layer) ---
+# Maths library: plain C++17, no ROS. PIC on because the layer plugin (a shared library) links it.
+add_library(obstacle_prediction STATIC src/prediction/obstacle_prediction.cpp)
+target_include_directories(obstacle_prediction PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(obstacle_prediction PUBLIC cxx_std_17)
+set_target_properties(obstacle_prediction PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Costmap layer plugin: loaded by Nav2 through pluginlib only when the params file lists it.
+find_package(nav2_costmap_2d REQUIRED)
+find_package(pluginlib REQUIRED)
+add_library(diffdrive_predictive_layer SHARED src/costmap/predictive_layer.cpp)
+target_include_directories(diffdrive_predictive_layer PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_compile_features(diffdrive_predictive_layer PUBLIC cxx_std_17)
+target_link_libraries(diffdrive_predictive_layer obstacle_prediction ${tracker_msgs_target})
+ament_target_dependencies(diffdrive_predictive_layer rclcpp nav2_costmap_2d pluginlib)
+pluginlib_export_plugin_description_file(nav2_costmap_2d predictive_layer_plugin.xml)
+install(TARGETS diffdrive_predictive_layer
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
+install(FILES predictive_layer_plugin.xml DESTINATION share/${PROJECT_NAME})
+
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_obstacle_prediction test/test_obstacle_prediction.cpp)
+  target_link_libraries(test_obstacle_prediction obstacle_prediction)
   ament_add_gtest(test_scan_clustering test/test_scan_clustering.cpp)
   target_link_libraries(test_scan_clustering scan_clustering)
   ament_add_gtest(test_kalman_tracker test/test_kalman_tracker.cpp)

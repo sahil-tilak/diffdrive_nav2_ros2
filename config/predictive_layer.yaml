@@ -1,0 +1,23 @@
+# Overlay for config/nav2_params.yaml. Only used with: bringup.launch.py predictive_layer:=true
+# The launch file merges this file into a temporary copy of nav2_params.yaml.
+# Dicts are merged, lists (like "plugins") are replaced as a whole.
+# nav2_params.yaml itself is never changed.
+#
+# YAML types matter: horizon, time_step, obstacle_radius, extra_margin, max_msg_age are
+# decimals (write 2.0, not 2). max_cost, min_cost, max_tracks are whole numbers.
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      plugins: ["voxel_layer", "predictive_layer", "inflation_layer"]
+      predictive_layer:
+        plugin: "diffdrive_nav2_ros2::PredictiveLayer"
+        enabled: true
+        topic: /tracked_obstacles
+        horizon: 1.5            # s ahead to mark (your 1-2 s)
+        time_step: 0.1          # s between guesses -> 16 points per track
+        obstacle_radius: 0.22   # m; moving_box is 0.3 x 0.3, half-diagonal 0.212
+        extra_margin: 0.0       # m, added to every disc
+        max_cost: 252           # cost of "now"; never above 252 (253/254 = collision for MPPI)
+        min_cost: 140           # cost at the horizon; about the outer edge of inflation
+        max_msg_age: 0.5        # s; older tracker message -> mark nothing
+        max_tracks: 10          # CPU cap
