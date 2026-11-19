@@ -32,12 +32,23 @@ namespace diffdrive_nav2_ros2::prediction
 // std::vector::push_back (or emplace_back).
 // ============================================================================
 std::vector<PredictedPoint> predictPositions(
-  [[maybe_unused]] const ObstacleState & s,
-  [[maybe_unused]] double t_start,
-  [[maybe_unused]] double t_end,
-  [[maybe_unused]] double step)
+   const ObstacleState & s,
+   double t_start,
+   double t_end,
+   double step)
 {
-  return {};
+  if (step<=0 || t_end<t_start){
+    return {};
+  };
+  int n = static_cast<int>(std::floor(((t_end - t_start) / step)+ 1e-9) + 1);
+  std::vector<PredictedPoint> predicted_point;
+  for(int i=0; i < n; i++){
+    double t = t_start + i * step;
+    double x = s.x + s.vx * t;
+    double y = s.y + s.vy * t;
+    predicted_point.push_back({x, y, t});
+  }
+  return predicted_point;
 }
 
 // ============================================================================
@@ -76,12 +87,41 @@ std::vector<PredictedPoint> predictPositions(
 // static_cast<int>, std::vector::reserve, std::vector::push_back.
 // ============================================================================
 std::vector<Cell> cellsInDisc(
-  [[maybe_unused]] double wx,
-  [[maybe_unused]] double wy,
-  [[maybe_unused]] double radius,
-  [[maybe_unused]] const GridInfo & grid)
+   double wx,
+   double wy,
+   double radius,
+   const GridInfo & grid)
 {
-  return {};
+  if(radius < 0 || grid.resolution <=0){
+    return{};
+  };
+
+  int min_mx = static_cast<int>(std::floor((wx - radius - grid.origin_x)/grid.resolution));
+  int max_mx = static_cast<int>(std::floor((wx + radius - grid.origin_x)/grid.resolution));
+  int min_my = static_cast<int>(std::floor((wy - radius - grid.origin_y)/grid.resolution));
+  int max_my = static_cast<int>(std::floor((wy + radius - grid.origin_y)/grid.resolution));
+
+  min_mx = std::max(0, min_mx);
+  max_mx = std::min(max_mx, static_cast<int>(grid.size_x) - 1);
+  min_my = std::max(0, min_my);
+  max_my = std::min(max_my, static_cast<int>(grid.size_y) - 1);
+
+  if(min_mx > max_mx || min_my > max_my){
+    return{};
+  }
+  std::vector<Cell> cells;
+  for(int mx = min_mx; mx <= max_mx; ++mx){
+    double cx = grid.origin_x + (mx + 0.5) * grid.resolution;
+    for(int my = min_my; my <= max_my; ++my){
+      double cy = grid.origin_y + (my + 0.5) * grid.resolution;
+      double dx = cx - wx; 
+      double dy = cy - wy;
+      if((dx*dx + dy*dy) <= (radius*radius + 1e-9)){
+        cells.push_back({static_cast<unsigned int>(mx), static_cast<unsigned int>(my)});
+      }
+    }
+  }
+  return cells;
 }
 
 // GIVEN (not a block): see the header for the rule and the plan for why 252 and 140.
