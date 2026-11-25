@@ -15,17 +15,26 @@ bridge entry /model/moving_box/cmd_vel (both added by launch with moving_obstacl
   message instead (the pose stamp is sim time; checked against /clock).
 - No pose for > 1 s (wall) -> sends zero velocity and warns. On shutdown -> zero.
 
-Collision handling (needs the contact sensor on moving_box in worlds/test_world_moving.sdf):
-- Subscribes to the sensor's default gz topic CONTACT_TOPIC (gz.msgs.Contacts, 50 Hz).
-- Ground contacts and any shape that is not a robot part are ignored silently.
-- First contact with a robot part (latched, happens once per run):
+Collision handling (needs the contact sensor and the TouchPlugin on moving_box in
+worlds/test_world_moving.sdf):
+- The TouchPlugin (inside Gazebo, target = diffdrive_robot) reads the box's contact sensor and
+  publishes gz.msgs.Boolean true ONCE on `touch_topic` when the box touches the robot. Ground
+  contacts never reach this script (before, ~975 msgs/s of them cost 18-20 % of a core).
+- First touch (latched, happens once per run):
     * box velocity is set to zero and stays zero (no more reversals, start service refused)
     * logs one ERROR line and publishes /collision (std_msgs/String, JSON, transient_local)
     * cancels all goals of /navigate_to_pose
     * publishes 5 zero Twists on /cmd_vel (safety net while the cancel goes through)
   A full restart is needed to move the box again.
+- Loud ERROR (every 5 s) if detection is broken, checked only while the box pose is arriving
+  and 5 s after the first pose:
+    * start-up self-test: the raw contact topic CONTACT_TOPIC must deliver a message (proves the
+      Contact system works; the script unsubscribes right after the first message)
+    * `touch_topic` must have a publisher (proves the TouchPlugin loaded)
+  Both checks stop after a collision.
 
-Parameters: speed 0.25, y_min -1.0, y_max 1.0, start_delay 0.0, autostart false, rate 10.0
+Parameters: speed 0.25, y_min -1.0, y_max 1.0, start_delay 0.0, autostart false, rate 10.0,
+touch_topic /moving_box_touch/touched
 Do NOT set use_sim_time:=true (see above).
 """
 import json
@@ -42,32 +51,22 @@ from std_srvs.srv import Trigger
 
 from gz.transport13 import Node as GzNode
 from gz.msgs10.pose_pb2 import Pose
+from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.contacts_pb2 import Contacts
 
 POSE_TOPIC = '/model/moving_box/pose'
 # Default topic of the contact sensor in worlds/test_world_moving.sdf (world empty_world, model
 # moving_box, link l, sensor contact). A <topic> tag on the sensor was ignored (checked).
+# Used only for the start-up self-test.
 CONTACT_TOPIC = '/world/empty_world/model/moving_box/link/l/sensor/contact/contact'
 CMD_TOPIC = '/model/moving_box/cmd_vel'
 ROBOT_CMD_TOPIC = '/cmd_vel'
 CANCEL_SRV = '/navigate_to_pose/_action/cancel_goal'
 COLLISION_TOPIC = '/collision'
 WATCHDOG_S = 1.0
-CONTACT_SILENT_S = 5.0       # no contact message for this long (wall s) -> error log
+CHECK_AFTER_S = 5.0          # wall s after the first box pose before the detection checks run
+CHECK_PERIOD_S = 5.0         # a failing check repeats its ERROR this often
 SAFETY_ZEROS = 5
-
-# Shape names that belong to the robot. The robot URDF is lumped by gz, so besides the scoped
-# name (diffdrive_robot::...) the bare collision names are listed too (checked with `gz sdf -p`).
-ROBOT_NAME_PARTS = ('diffdrive_robot', 'base_footprint_fixed_joint_lump__',
-                    'left_wheel_collision', 'right_wheel_collision')
-
-
-def is_robot(name):
-    return any(p in name for p in ROBOT_NAME_PARTS)
-
-
-def is_ground(name):
-    return 'ground_plane' in name
 
 
 class MovingObstacle(Node):
@@ -79,6 +78,8 @@ class MovingObstacle(Node):
         self.start_delay = self.declare_parameter('start_delay', 0.0).value
         self.autostart = self.declare_parameter('autostart', False).value
         rate = self.declare_parameter('rate', 10.0).value
+        self.touch_topic = self.declare_parameter(
+            'touch_topic', '/moving_box_touch/touched').value
 
         self.lock = threading.Lock()
         self.triggered = False
@@ -93,11 +94,12 @@ class MovingObstacle(Node):
         self.n_reversals = 0
         self.collided = False        # latched by the first robot contact
         self.safety_zeros_left = 0   # zero Twists still to send on /cmd_vel
-        self.logged_first_contact = False
-        self.start_mono = time.monotonic()
-        self.last_contact_mono = None    # wall time of the latest contact message (any kind)
-        self.last_silent_log = float('-inf')
-        self.contact_silent = False
+        self.first_pose_mono = None      # wall time of the first box pose (checks start 5 s later)
+        self.selftest_ok = False         # raw contact topic delivered a message
+        self.selftest_unsubscribed = False
+        self.last_selftest_log = float('-inf')
+        self.last_touch_pub_log = float('-inf')
+        self.touch_pub_bad = False
 
         self.pub =self.create_publisher(Twist, CMD_TOPIC, 10)
         self.robot_pub = self.create_publisher(Twist, ROBOT_CMD_TOPIC, 10)
@@ -112,7 +114,10 @@ class MovingObstacle(Node):
         self.gz = GzNode()
         if not self.gz.subscribe(Pose, POSE_TOPIC, self.on_pose):
             raise RuntimeError(f'cannot subscribe to {POSE_TOPIC}')
-        if not self.gz.subscribe(Contacts, CONTACT_TOPIC, self.on_contact):
+        if not self.gz.subscribe(Boolean, self.touch_topic, self.on_touch):
+            raise RuntimeError(f'cannot subscribe to {self.touch_topic}')
+        # start-up self-test only: unsubscribed by the timer after the first message
+        if not self.gz.subscribe(Contacts, CONTACT_TOPIC, self.on_selftest_contact):
             raise RuntimeError(f'cannot subscribe to {CONTACT_TOPIC}')
         self.get_logger().info(
             f'ready: y in [{self.y_min}, {self.y_max}], speed {self.speed}, '
@@ -152,6 +157,8 @@ class MovingObstacle(Node):
             self.y = y
             self.sim_t = sim_t
             self.last_pose_mono = time.monotonic()
+            if self.first_pose_mono is None:
+                self.first_pose_mono = self.last_pose_mono
             self.watchdog_zero = False
             if not self.running:
                 return
@@ -166,25 +173,14 @@ class MovingObstacle(Node):
             self.send(d * self.speed)       # reverse right here, not on the timer
         self.get_logger().info(f'reversal {n}: y={y:.3f}, direction now {d:+d}')
 
-    # ---- gz contact callback (gz transport thread, 50 Hz) ----
-    def on_contact(self, msg):
-        self.last_contact_mono = time.monotonic()   # any message counts as "sensor alive"
-        hit = None
-        for c in msg.contact:
-            n1, n2 = c.collision1.name, c.collision2.name
-            if is_ground(n1) or is_ground(n2):
-                continue                        # ground contact: ignore silently
-            if not self.logged_first_contact:
-                self.logged_first_contact = True
-                self.get_logger().info(f'first non-ground contact: "{n1}" <-> "{n2}"')
-            robot_part = n1 if is_robot(n1) else (n2 if is_robot(n2) else None)
-            if robot_part is not None:
-                pos = c.position[0] if len(c.position) else None
-                hit = (robot_part, pos)
-                break
-        if hit is None:
+    # ---- gz contact callback, start-up self-test only (unsubscribed after the first message) ----
+    def on_selftest_contact(self, _msg):
+        self.selftest_ok = True
+
+    # ---- gz touch callback (gz transport thread): TouchPlugin says box touched the robot ----
+    def on_touch(self, msg):
+        if not msg.data:
             return
-        robot_part, pos = hit
         with self.lock:
             if self.collided:
                 return
@@ -197,11 +193,10 @@ class MovingObstacle(Node):
         info = {
             'sim_time': sim_t,
             'box_xy': [bx, by],
-            'robot_part': robot_part,
-            'contact_xyz': [pos.x, pos.y, pos.z] if pos is not None else None,
+            'detector': 'touch_plugin',
         }
         self.get_logger().error(
-            f'COLLISION: moving_box hit "{robot_part}" at sim t={sim_t}, box=({bx}, {by}); '
+            f'COLLISION: moving_box touched diffdrive_robot at sim t={sim_t}, box=({bx}, {by}); '
             'box stopped, cancelling navigate_to_pose goals')
         self.collision_pub.publish(String(data=json.dumps(info)))
         if self.cancel_client.service_is_ready():
@@ -221,6 +216,38 @@ class MovingObstacle(Node):
         except Exception as e:
             self.get_logger().error(f'cancel call failed: {e}')
 
+    # ---- detection checks (called from the timer, lock held). Log only. ----
+    def check_detection(self):
+        now = time.monotonic()
+        # Self-test passed: stop receiving the 1 kHz raw contact stream right away.
+        if self.selftest_ok and not self.selftest_unsubscribed:
+            self.selftest_unsubscribed = True
+            self.gz.unsubscribe(CONTACT_TOPIC)
+            self.get_logger().info(
+                'self-test ok: contact sensor delivers data (raw topic unsubscribed)')
+        # Only judge while the sim is clearly running: box pose is fresh, 5 s after the first.
+        if (self.first_pose_mono is None or self.last_pose_mono is None
+                or now - self.last_pose_mono > WATCHDOG_S
+                or now - self.first_pose_mono < CHECK_AFTER_S):
+            return
+        if not self.selftest_ok and now - self.last_selftest_log >= CHECK_PERIOD_S:
+            self.last_selftest_log = now
+            self.get_logger().error(
+                f'CONTACT DETECTION NOT WORKING: no contact data on {CONTACT_TOPIC} although '
+                'the box pose is arriving. Collisions will NOT be detected.')
+        pubs = self.gz.topic_info(self.touch_topic)[0]
+        if pubs:
+            if self.touch_pub_bad:
+                self.touch_pub_bad = False
+                self.get_logger().info(f'{self.touch_topic} has a publisher again')
+        else:
+            self.touch_pub_bad = True
+            if now - self.last_touch_pub_log >= CHECK_PERIOD_S:
+                self.last_touch_pub_log = now
+                self.get_logger().error(
+                    f'CONTACT DETECTION NOT WORKING: no publisher on {self.touch_topic} '
+                    '(TouchPlugin not loaded or misconfigured). Collisions will NOT be detected.')
+
     # ---- timer: start logic, heartbeat, watchdog ----
     def on_timer(self):
         with self.lock:
@@ -230,25 +257,7 @@ class MovingObstacle(Node):
                     self.safety_zeros_left -= 1
                     self.robot_pub.publish(Twist())
                 return
-            # Contact sensor watchdog (log only): the resting box always touches the ground,
-            # so contact messages should keep coming. Silence = collisions would go unseen.
-            now = time.monotonic()
-            ref = self.last_contact_mono if self.last_contact_mono is not None else self.start_mono
-            if now - ref > CONTACT_SILENT_S:
-                if now - self.last_silent_log >= CONTACT_SILENT_S:
-                    self.last_silent_log = now
-                    self.contact_silent = True
-                    if self.last_pose_mono is None or now - self.last_pose_mono > WATCHDOG_S:
-                        self.get_logger().warn(
-                            f'no contact messages for > {CONTACT_SILENT_S} s, and no box pose '
-                            'either: sim not running or paused?')
-                    else:
-                        self.get_logger().error(
-                            f'CONTACT SENSOR SILENT for > {CONTACT_SILENT_S} s (box pose is '
-                            f'arriving): collisions will NOT be detected. Topic: {CONTACT_TOPIC}')
-            elif self.contact_silent:
-                self.contact_silent = False
-                self.get_logger().info('contact messages are back')
+            self.check_detection()
             if not self.running:
                 if self.autostart and not self.triggered:
                     self.triggered = True

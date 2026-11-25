@@ -101,6 +101,12 @@
           <contact><collision>c</collision></contact>
         </sensor>
       </link>
+      <plugin filename="gz-sim-touchplugin-system" name="gz::sim::systems::TouchPlugin">
+        <target>diffdrive_robot</target>
+        <time>0.001</time>
+        <namespace>moving_box_touch</namespace>
+        <enabled>true</enabled>
+      </plugin>
       <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"/>
       <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
         <publish_model_pose>true</publish_model_pose>
