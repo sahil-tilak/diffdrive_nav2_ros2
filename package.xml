@@ -20,6 +20,7 @@
   <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_srvs</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <build_depend>geometry_msgs</build_depend>
   <depend>sensor_msgs</depend>

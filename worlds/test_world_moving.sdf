@@ -13,6 +13,7 @@
         <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
             <render_engine>ogre2</render_engine>
         </plugin>
+        <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
 
         <light type="directional" name="sun">
             <cast_shadows>true</cast_shadows>
@@ -94,6 +95,11 @@
           <geometry><box><size>0.3 0.3 0.4</size></box></geometry>
           <material><ambient>0.9 0.3 0.1 1</ambient><diffuse>0.9 0.3 0.1 1</diffuse></material>
         </visual>
+        <sensor name="contact" type="contact">
+          <always_on>true</always_on>
+          <update_rate>50</update_rate>
+          <contact><collision>c</collision></contact>
+        </sensor>
       </link>
       <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"/>
       <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
