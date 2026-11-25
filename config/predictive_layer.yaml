@@ -13,7 +13,7 @@ local_costmap:
         plugin: "diffdrive_nav2_ros2::PredictiveLayer"
         enabled: true
         topic: /tracked_obstacles
-        horizon: 1.5            # s ahead to mark (your 1-2 s)
+        horizon: 3.0            # s ahead to mark (your 1-2 s)
         time_step: 0.1          # s between guesses -> 16 points per track
         obstacle_radius: 0.22   # m; moving_box is 0.3 x 0.3, half-diagonal 0.212
         extra_margin: 0.0       # m, added to every disc
