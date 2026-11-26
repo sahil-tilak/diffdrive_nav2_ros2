@@ -110,7 +110,8 @@ target_include_directories(diffdrive_predictive_layer PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(diffdrive_predictive_layer PUBLIC cxx_std_17)
 target_link_libraries(diffdrive_predictive_layer obstacle_prediction ${tracker_msgs_target})
-ament_target_dependencies(diffdrive_predictive_layer rclcpp nav2_costmap_2d pluginlib)
+ament_target_dependencies(diffdrive_predictive_layer
+  rclcpp nav2_costmap_2d pluginlib tf2 tf2_ros tf2_geometry_msgs)
 pluginlib_export_plugin_description_file(nav2_costmap_2d predictive_layer_plugin.xml)
 install(TARGETS diffdrive_predictive_layer
   ARCHIVE DESTINATION lib

@@ -7,9 +7,13 @@
 #include <utility>
 
 #include "diffdrive_nav2_ros2/prediction/obstacle_prediction.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "pluginlib/class_list_macros.hpp"
+#include "tf2/exceptions.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "tf2_ros/buffer.h"
 
 namespace pred = diffdrive_nav2_ros2::prediction;
 
@@ -120,12 +124,41 @@ void PredictiveLayer::updateBounds(
   if (blocks_ready_ && msg) {
     const rclcpp::Time now = clock_->now();
     const double age = (now - rclcpp::Time(msg->header.stamp, now.get_clock_type())).seconds();
-    if (msg->header.frame_id != layered_costmap_->getGlobalFrameID()) {
-      RCLCPP_WARN_THROTTLE(
-        logger_, *clock_, 5000, "%s: tracks are in frame '%s' but the costmap is in '%s'",
-        name_.c_str(), msg->header.frame_id.c_str(),
-        layered_costmap_->getGlobalFrameID().c_str());
-    } else if (age > max_msg_age_) {
+    // Takes a predicted point from the track frame to the costmap frame. Identity if equal.
+    tf2::Transform to_costmap;
+    to_costmap.setIdentity();
+    // Fills to_costmap. false = no TF at all, so nothing can be marked.
+    const auto lookup_to_costmap = [this, &msg, &to_costmap]() {
+        const std::string target = layered_costmap_->getGlobalFrameID();
+        const std::string & source = msg->header.frame_id;
+        if (source == target) {
+          return true;  // no TF needed
+        }
+        // No timeout on either lookup: the map update thread must never wait for TF.
+        geometry_msgs::msg::TransformStamped transform;
+        try {
+          transform = tf_->lookupTransform(target, source, tf2_ros::fromMsg(msg->header.stamp));
+          RCLCPP_INFO_THROTTLE(
+            logger_, *clock_, 5000, "%s: TF %s <- %s, path: stamp",
+            name_.c_str(), target.c_str(), source.c_str());
+        } catch (const tf2::TransformException & stamp_error) {
+          // map -> odom changes slowly: the latest one is close to the one at the stamp.
+          try {
+            transform = tf_->lookupTransform(target, source, tf2::TimePointZero);
+            RCLCPP_WARN_THROTTLE(
+              logger_, *clock_, 5000, "%s: TF %s <- %s, path: latest (fallback), at stamp: %s",
+              name_.c_str(), target.c_str(), source.c_str(), stamp_error.what());
+          } catch (const tf2::TransformException & latest_error) {
+            RCLCPP_WARN_THROTTLE(
+              logger_, *clock_, 5000, "%s: no TF %s <- %s, marking nothing: %s",
+              name_.c_str(), target.c_str(), source.c_str(), latest_error.what());
+            return false;
+          }
+        }
+        tf2::fromMsg(transform.transform, to_costmap);
+        return true;
+      };
+    if (age > max_msg_age_) {
       RCLCPP_WARN_THROTTLE(
         logger_, *clock_, 5000, "%s: latest tracks are %.2f s old (max %.2f s), marking nothing",
         name_.c_str(), age, max_msg_age_);
@@ -133,7 +166,7 @@ void PredictiveLayer::updateBounds(
       RCLCPP_WARN_THROTTLE(
         logger_, *clock_, 5000, "%s: tracks are stamped %.2f s in the future, marking nothing",
         name_.c_str(), -age);
-    } else {
+    } else if (lookup_to_costmap()) {
       // The tracks describe the obstacles at the message stamp. The first guess to mark is
       // "now" (t = age), the last one is horizon seconds later.
       const double t_start = std::max(age, 0.0);
@@ -149,8 +182,9 @@ void PredictiveLayer::updateBounds(
         const auto points = pred::predictPositions(
           {o.x, o.y, o.vx, o.vy}, t_start, t_start + horizon_, time_step_);
         for (const auto & p : points) {
+          const tf2::Vector3 q = to_costmap * tf2::Vector3(p.x, p.y, 0.0);
           marks.push_back(
-            {p.x, p.y, pred::predictedCost(p.t - t_start, horizon_, max_cost_, min_cost_)});
+            {q.x(), q.y(), pred::predictedCost(p.t - t_start, horizon_, max_cost_, min_cost_)});
         }
       }
     }

@@ -21,3 +21,22 @@ local_costmap:
         min_cost: 140           # cost at the horizon; about the outer edge of inflation
         max_msg_age: 0.5        # s; older tracker message -> mark nothing
         max_tracks: 10          # CPU cap
+
+# Same layer for NavFn. Frame is map, tracks are in odom: the layer transforms them with TF.
+# Keep the values the same as above.
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      plugins: ["static_layer", "obstacle_layer", "predictive_layer", "inflation_layer"]
+      predictive_layer:
+        plugin: "diffdrive_nav2_ros2::PredictiveLayer"
+        enabled: true
+        topic: /tracked_obstacles
+        horizon: 3.0
+        time_step: 0.1
+        obstacle_radius: 0.22
+        extra_margin: 0.0
+        max_cost: 252
+        min_cost: 140
+        max_msg_age: 0.5
+        max_tracks: 10

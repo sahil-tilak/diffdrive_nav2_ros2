@@ -55,7 +55,7 @@ def generate_launch_description():
             description='true = moving box world + obstacle script (see gazebo.launch.py)'),
         DeclareLaunchArgument(
             'predictive_layer', default_value='false',
-            description='true = add the predictive costmap layer to the local costmap'),
+            description='true = add the predictive layer to the local and global costmaps'),
         DeclareLaunchArgument(
             'headless', default_value='false',
             description='true = run Gazebo without its window'),

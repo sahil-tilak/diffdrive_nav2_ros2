@@ -1,7 +1,8 @@
 // Nav2 costmap layer: marks where tracked moving obstacles WILL be in the next ~1-2 s.
 //
 // Plumbing only. The maths is in prediction/obstacle_prediction.hpp (predictPositions,
-// cellsInDisc, predictedCost). Written for the LOCAL costmap (frame odom = frame of the tracks).
+// cellsInDisc, predictedCost). Works in the local and the global costmap: if the costmap frame
+// (map) differs from the frame of the tracks (odom), predicted points are transformed with TF.
 #pragma once
 
 #include <memory>
