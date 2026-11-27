@@ -138,6 +138,7 @@ Caveats:
 - Calibration first: pick the box start delay where OFF gets into conflict (contact, or robot-box distance under 0.4 m) in at least 2 of 3 trial runs. Freeze the delay. Calibration runs don't count.
 - Then 5 runs ON (layer in both costmaps) and 5 runs OFF, same delay, headless, no RViz, full restart each run.
 - Invalid runs (Nav2 not active twice, no odom TF, goal not accepted) are repeated, not counted.
+- Also repeated, not counted (added Nov 27, before calibration): Gazebo does not start; detector or tracker dies; no box pose, robot pose, goal server or box start service; box start refused or not answered; recorder crashes or times out; no map->base_footprint TF; wrong layer mode; contact detection not working; analysis fails.
 - Pass: the plugin helps if ON has at most 1 contact and OFF has at least 3. Anything else is inconclusive.
 - Supporting measure: median closest robot-box distance, ON vs OFF.
 - Known bias, stated now: false wall tracks exist only with the layer ON and work against it.
