@@ -2,6 +2,7 @@
 // src/tracking/kalman_tracker.cpp are filled in. The static-filter test passes already.
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <set>
@@ -139,4 +140,107 @@ TEST(StaticFilter, StaticTrackNotPublished)
   const auto out = filterMoving(tracks, 0.1);
   ASSERT_EQ(out.size(), 1u);
   EXPECT_EQ(out[0].id, 2u);
+}
+
+// --- publish filter: speed limits and confirmation ---
+
+TEST(Publishable, SpeedLimitsAreInclusive)
+{
+  const std::vector<double> speeds{0.05, 0.1, 0.25, 1.5, 1.51, 2.24};
+  std::vector<Track> tracks;
+  for (std::size_t i = 0; i < speeds.size(); ++i) {
+    tracks.push_back(makeTrack(static_cast<std::uint32_t>(i), 0.0, 0.0));
+    tracks.back().kf.setState(Vec4(0.0, 0.0, speeds[i], 0.0));
+    tracks.back().confirmed = true;
+  }
+  std::set<std::uint32_t> ids;
+  for (const auto & t : filterPublishable(tracks, 0.1, 1.5)) {
+    ids.insert(t.id);
+  }
+  EXPECT_EQ(ids, (std::set<std::uint32_t>{1, 2, 3}));  // 0.1, 0.25 and 1.5 m/s
+}
+
+TEST(Publishable, DefaultsAreFourHitsAndWalkingPace)
+{
+  const TrackerParams p;
+  EXPECT_EQ(p.confirm_hits, 4);
+  EXPECT_DOUBLE_EQ(p.max_speed, 1.5);
+}
+
+// A 0.25 m/s target (the test box) is published from its fourth match, not before.
+TEST(Publishable, BoxSpeedTargetPublishedFromFourthMatch)
+{
+  const TrackerParams p;
+  TrackManager m(p);
+  // Moving from birth: speed passes min_speed at once, so only confirmation holds it back.
+  m.step({Vec2(1.4, 0.0)}, 0.0);
+  for (int match = 1; match <= 30; ++match) {
+    m.step({Vec2(1.4, 0.025 * match)}, 0.1);
+    ASSERT_EQ(m.tracks().size(), 1u);
+    const auto & t = m.tracks()[0];
+    EXPECT_EQ(t.confirmed, match >= 4) << "match " << match;
+    if (match < 4) {
+      EXPECT_EQ(filterMoving(m.tracks(), p.min_speed).size(), 1u) << "match " << match;
+      EXPECT_TRUE(filterPublishable(m.tracks(), p.min_speed, p.max_speed).empty());
+    }
+  }
+  const auto out = filterPublishable(m.tracks(), p.min_speed, p.max_speed);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0].id, 1u);
+  EXPECT_NEAR(out[0].kf.velocity().y(), 0.25, 0.05);
+}
+
+TEST(Publishable, MissBeforeConfirmationRestartsTheCount)
+{
+  TrackManager m{TrackerParams{}};
+  const std::vector<Vec2> det{Vec2(1.0, 0.0)};
+  m.step(det, 0.0);
+  m.step(det, 0.1);
+  m.step(det, 0.1);
+  m.step(det, 0.1);   // 3 matches in a row
+  m.step({}, 0.1);    // miss
+  m.step(det, 0.1);
+  m.step(det, 0.1);
+  m.step(det, 0.1);   // 6 matches in total, but only 3 in a row
+  ASSERT_EQ(m.tracks().size(), 1u);
+  EXPECT_FALSE(m.tracks()[0].confirmed);
+  m.step(det, 0.1);
+  EXPECT_TRUE(m.tracks()[0].confirmed);
+}
+
+TEST(Publishable, ConfirmedTrackStaysPublishedThroughAMiss)
+{
+  const TrackerParams p;
+  TrackManager m(p);
+  m.step({Vec2(1.4, 0.0)}, 0.0);
+  for (int k = 1; k <= 20; ++k) {
+    m.step({Vec2(1.4, 0.025 * k)}, 0.1);
+  }
+  m.step({}, 0.1);
+  EXPECT_EQ(filterPublishable(m.tracks(), p.min_speed, p.max_speed).size(), 1u);
+}
+
+// Regression, detections recorded in run ftrk_02 (odom): two different pieces of the partition
+// wall, 0.33 m apart in consecutive scans, then nothing. Only the wall points are replayed.
+// Confirmation alone must block it, so the speed limit is switched off in the second check.
+TEST(Publishable, RecordedWallJumpIsNeverPublished)
+{
+  const TrackerParams p;
+  TrackManager m(p);
+  std::vector<std::vector<Vec2>> scans{
+    {Vec2(0.0989048, 1.6748612)},
+    {Vec2(0.0976799, 2.0062287)}};
+  scans.resize(scans.size() + 6);  // empty scans: the track coasts, then is deleted
+
+  double fastest = 0.0;
+  for (std::size_t k = 0; k < scans.size(); ++k) {
+    m.step(scans[k], k == 0 ? 0.0 : 0.1);
+    for (const auto & t : filterMoving(m.tracks(), p.min_speed)) {
+      fastest = std::max(fastest, t.kf.speed());
+    }
+    EXPECT_TRUE(filterPublishable(m.tracks(), p.min_speed, p.max_speed).empty()) << "scan " << k;
+    EXPECT_TRUE(filterPublishable(m.tracks(), p.min_speed, 1e9).empty()) << "scan " << k;
+  }
+  EXPECT_NEAR(fastest, 2.24, 0.01);  // the old filter would have published this speed
+  EXPECT_TRUE(m.tracks().empty());
 }

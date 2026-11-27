@@ -199,9 +199,14 @@ void TrackManager::step(const std::vector<Vec2> & detections, double dt)
   for (const auto & [ti, di] : a.matches) {
     tracks_[ti].kf.update(detections[di]);
     tracks_[ti].missed = 0;
+    ++tracks_[ti].streak;
+    if (tracks_[ti].streak >= p_.confirm_hits) {
+      tracks_[ti].confirmed = true;
+    }
   }
   for (const std::size_t ti : a.unmatched_tracks) {
     ++tracks_[ti].missed;
+    tracks_[ti].streak = 0;
   }
   tracks_.erase(
     std::remove_if(
@@ -213,6 +218,7 @@ void TrackManager::step(const std::vector<Vec2> & detections, double dt)
     tracks_.push_back(
       Track{next_id_++,
         ConstantVelocityKF(detections[di], p_.q_accel, p_.r_meas, p_.init_vel_var), 0});
+    tracks_.back().confirmed = p_.confirm_hits <= 0;
   }
 }
 
@@ -221,6 +227,18 @@ std::vector<Track> filterMoving(const std::vector<Track> & tracks, double min_sp
   std::vector<Track> out;
   for (const auto & t : tracks) {
     if (t.kf.speed() >= min_speed) {
+      out.push_back(t);
+    }
+  }
+  return out;
+}
+
+std::vector<Track> filterPublishable(
+  const std::vector<Track> & tracks, double min_speed, double max_speed)
+{
+  std::vector<Track> out;
+  for (const auto & t : filterMoving(tracks, min_speed)) {
+    if (t.confirmed && t.kf.speed() <= max_speed) {
       out.push_back(t);
     }
   }

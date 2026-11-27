@@ -57,6 +57,8 @@ struct Track
   std::uint32_t id;
   ConstantVelocityKF kf;
   int missed = 0;                   // scans in a row without a match
+  int streak = 0;                   // scans in a row with a match (birth does not count)
+  bool confirmed = false;           // true once streak reached confirm_hits, then stays true
 };
 
 struct Association
@@ -78,6 +80,10 @@ struct TrackerParams
   int max_missed = 5;          // scans, 0.5 s at 10 Hz
   double min_speed = 0.1;      // m/s, tracks slower than this are not published
   double init_vel_var = 1.0;   // (m/s)^2, velocity unknown at birth
+  int confirm_hits = 4;        // matches in a row before a track may be published
+  // m/s, walking pace. Faster tracks are not published, so a real mover above this is hidden.
+  // It does not block every false track: slower false ones rely on confirm_hits.
+  double max_speed = 1.5;
 };
 
 class TrackManager
@@ -89,6 +95,7 @@ public:
   // dt > 0: predict all tracks first. dt <= 0: skip predict (first scan or bad stamps).
   // Then associate, update matched, age unmatched (delete when missed > max_missed),
   // and create a new track for each unmatched detection.
+  // A track is confirmed after confirm_hits matches in a row.
   void step(const std::vector<Vec2> & detections, double dt);
 
   const std::vector<Track> & tracks() const {return tracks_;}
@@ -101,5 +108,9 @@ private:
 
 // Static filter: keep only tracks with speed >= min_speed.
 std::vector<Track> filterMoving(const std::vector<Track> & tracks, double min_speed);
+
+// What the node publishes: confirmed tracks with min_speed <= speed <= max_speed.
+std::vector<Track> filterPublishable(
+  const std::vector<Track> & tracks, double min_speed, double max_speed);
 
 }  // namespace diffdrive_nav2_ros2::tracking

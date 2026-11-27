@@ -1,6 +1,7 @@
 // Thin ROS 2 wrapper around tracking::TrackManager.
 // /detected_obstacles (PoseArray, odom) -> tracks -> /tracked_obstacles + /tracked_obstacles/markers
-// dt = difference of header stamps of two consecutive messages. Only moving tracks are published.
+// dt = difference of header stamps of two consecutive messages.
+// Only confirmed tracks with min_speed <= speed <= max_speed are published.
 #include <memory>
 #include <vector>
 
@@ -32,7 +33,10 @@ public:
     p.max_missed = declare_parameter<int>("max_missed", p.max_missed);
     p.min_speed = declare_parameter<double>("min_speed", p.min_speed);
     p.init_vel_var = declare_parameter<double>("init_vel_var", p.init_vel_var);
+    p.confirm_hits = declare_parameter<int>("confirm_hits", p.confirm_hits);
+    p.max_speed = declare_parameter<double>("max_speed", p.max_speed);
     min_speed_ = p.min_speed;
+    max_speed_ = p.max_speed;
     manager_ = std::make_unique<trk::TrackManager>(p);
 
     pub_ = create_publisher<TrackedObstacleArray>("tracked_obstacles", 10);
@@ -41,8 +45,10 @@ public:
       "detected_obstacles", 10,
       [this](geometry_msgs::msg::PoseArray::ConstSharedPtr msg) {onDetections(*msg);});
     RCLCPP_INFO(
-      get_logger(), "ready: q_accel=%.3f r_meas=%.3f gate=%.2f max_missed=%d min_speed=%.2f",
-      p.q_accel, p.r_meas, p.gate, p.max_missed, p.min_speed);
+      get_logger(),
+      "ready: q_accel=%.3f r_meas=%.3f gate=%.2f max_missed=%d min_speed=%.2f "
+      "max_speed=%.2f confirm_hits=%d",
+      p.q_accel, p.r_meas, p.gate, p.max_missed, p.min_speed, p.max_speed, p.confirm_hits);
   }
 
 private:
@@ -67,7 +73,7 @@ private:
       dets.emplace_back(pose.position.x, pose.position.y);
     }
     manager_->step(dets, dt);
-    const auto moving = trk::filterMoving(manager_->tracks(), min_speed_);
+    const auto moving = trk::filterPublishable(manager_->tracks(), min_speed_, max_speed_);
 
     TrackedObstacleArray out;
     out.header = msg.header;
@@ -113,6 +119,7 @@ private:
   }
 
   double min_speed_ = 0.1;
+  double max_speed_ = 1.5;
   bool have_last_ = false;
   rclcpp::Time last_stamp_{0, 0, RCL_SYSTEM_TIME};
   std::unique_ptr<trk::TrackManager> manager_;
